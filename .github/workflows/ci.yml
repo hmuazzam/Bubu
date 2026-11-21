@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [g++, clang++]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and smoke checks
+        run: |
+          make clean
+          make -j2 CXX=${{ matrix.compiler }}
+          make test CXX=${{ matrix.compiler }}
+          make bench CXX=${{ matrix.compiler }}
+          make debug CXX=${{ matrix.compiler }}

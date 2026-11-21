@@ -1,0 +1,9 @@
+/bubu
+/build/
+*.o
+*.d
+*.exe
+*.pgn
+*.log
+__pycache__/
+.venv/
