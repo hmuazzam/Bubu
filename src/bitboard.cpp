@@ -118,25 +118,47 @@ Bitboard ray_attacks(Square square, Bitboard occupied, const int dirs[][2],
 // Build once before main so hot-path lookups do not check a local-static guard.
 const SlidingTables slider_tables{};
 
+struct LeaperTables {
+    std::array<Bitboard, 64> knight{};
+    std::array<Bitboard, 64> king{};
+    std::array<std::array<Bitboard, 64>, 2> pawn{};
+
+    LeaperTables() {
+        for (Square square = 0; square < 64; ++square) {
+            knight[square] = leaper_attacks(square, knight_offsets, 8);
+            king[square] = leaper_attacks(square, king_offsets, 8);
+            for (Color color : {Color::white, Color::black}) {
+                Bitboard attacks = 0;
+                const int next_rank =
+                    rank_of(square) + (color == Color::white ? 1 : -1);
+                if (next_rank >= 0 && next_rank < 8) {
+                    if (file_of(square) > 0)
+                        attacks |= square_bb(make_square(file_of(square) - 1,
+                                                        next_rank));
+                    if (file_of(square) < 7)
+                        attacks |= square_bb(make_square(file_of(square) + 1,
+                                                        next_rank));
+                }
+                pawn[color == Color::white ? 0 : 1][square] = attacks;
+            }
+        }
+    }
+};
+
+const LeaperTables leaper_tables{};
+
 }  // namespace
 
 Bitboard pawn_attacks(Color color, Square square) {
-    Bitboard attacks = 0;
-    const int next_rank = rank_of(square) + (color == Color::white ? 1 : -1);
-    if (next_rank < 0 || next_rank >= 8) return attacks;
-    if (file_of(square) > 0)
-        attacks |= square_bb(make_square(file_of(square) - 1, next_rank));
-    if (file_of(square) < 7)
-        attacks |= square_bb(make_square(file_of(square) + 1, next_rank));
-    return attacks;
+    return leaper_tables.pawn[color == Color::white ? 0 : 1][square];
 }
 
 Bitboard knight_attacks(Square square) {
-    return leaper_attacks(square, knight_offsets, 8);
+    return leaper_tables.knight[square];
 }
 
 Bitboard king_attacks(Square square) {
-    return leaper_attacks(square, king_offsets, 8);
+    return leaper_tables.king[square];
 }
 
 Bitboard bishop_attacks(Square square, Bitboard occupied) {
