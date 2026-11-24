@@ -2,8 +2,6 @@
 
 #include "magic_numbers.h"
 
-#include <bit>
-
 namespace bubu {
 namespace {
 
@@ -124,18 +122,6 @@ Bitboard ray_attacks(Square square, Bitboard occupied, const int dirs[][2],
 }
 
 }  // namespace
-
-int popcount(Bitboard board) { return std::popcount(board); }
-
-Square lsb(Bitboard board) {
-    return board == 0 ? no_square : static_cast<Square>(std::countr_zero(board));
-}
-
-Bitboard pop_lsb(Bitboard& board) {
-    const Bitboard bit = board & (~board + 1);
-    board &= board - 1;
-    return bit;
-}
 
 Bitboard pawn_attacks(Color color, Square square) {
     Bitboard attacks = 0;
