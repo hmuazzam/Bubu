@@ -5,6 +5,7 @@
 #include "params.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 
 namespace bubu {
@@ -64,16 +65,6 @@ ScorePair piece_square(PieceType type, Color color, Square square) {
     }
 }
 
-bool has_pawn_on_file(const Position& position, Color color, int file) {
-    Bitboard pawns = position.piece_bb[piece_index(color, PieceType::pawn)];
-    while (pawns != 0) {
-        const Square square = lsb(pawns);
-        pop_lsb(pawns);
-        if (file_of(square) == file) return true;
-    }
-    return false;
-}
-
 bool is_passed_pawn(const Position& position, Color color, Square square) {
     Bitboard enemies = position.piece_bb[piece_index(opposite(color), PieceType::pawn)];
     while (enemies != 0) {
@@ -87,7 +78,40 @@ bool is_passed_pawn(const Position& position, Color color, Square square) {
     return true;
 }
 
-ScorePair pawn_structure(const Position& position, Color color) {
+struct EvaluationData {
+    std::array<std::array<Bitboard, 8>, 2> pawns_by_file{};
+    std::array<Bitboard, 64> attacks{};
+};
+
+int color_slot(Color color) { return color == Color::white ? 0 : 1; }
+
+Bitboard piece_attacks(const Position& position, Piece piece, Square square) {
+    switch (type_of(piece)) {
+        case PieceType::pawn: return pawn_attacks(color_of(piece), square);
+        case PieceType::knight: return knight_attacks(square);
+        case PieceType::bishop: return bishop_attacks(square, position.occupied);
+        case PieceType::rook: return rook_attacks(square, position.occupied);
+        case PieceType::queen: return queen_attacks(square, position.occupied);
+        case PieceType::king: return king_attacks(square);
+        default: return 0;
+    }
+}
+
+EvaluationData prepare_evaluation_data(const Position& position) {
+    EvaluationData data;
+    for (Square square = 0; square < 64; ++square) {
+        const Piece piece = position.mailbox[square];
+        if (!is_piece(piece)) continue;
+        if (type_of(piece) == PieceType::pawn)
+            data.pawns_by_file[color_slot(color_of(piece))][file_of(square)] |=
+                square_bb(square);
+        data.attacks[square] = piece_attacks(position, piece, square);
+    }
+    return data;
+}
+
+ScorePair pawn_structure_fast(const Position& position, Color color,
+                              const EvaluationData& data) {
     ScorePair score;
     Bitboard pawns = position.piece_bb[piece_index(color, PieceType::pawn)];
     const Bitboard friendly = pawns;
@@ -95,16 +119,12 @@ ScorePair pawn_structure(const Position& position, Color color) {
         const Square square = lsb(pawns);
         pop_lsb(pawns);
         const int file = file_of(square);
-        int same_file = 0;
-        Bitboard file_pawns = friendly;
-        while (file_pawns != 0) {
-            const Square other = lsb(file_pawns);
-            pop_lsb(file_pawns);
-            if (file_of(other) == file) ++same_file;
-        }
+        const int same_file = popcount(data.pawns_by_file[color_slot(color)][file]);
         if (same_file > 1) score += {-params::doubled_pawn, -params::doubled_pawn};
-        const bool neighbor_left = file > 0 && has_pawn_on_file(position, color, file - 1);
-        const bool neighbor_right = file < 7 && has_pawn_on_file(position, color, file + 1);
+        const bool neighbor_left =
+            file > 0 && data.pawns_by_file[color_slot(color)][file - 1] != 0;
+        const bool neighbor_right =
+            file < 7 && data.pawns_by_file[color_slot(color)][file + 1] != 0;
         if (!neighbor_left && !neighbor_right)
             score += {-params::isolated_pawn, -params::isolated_pawn};
 
@@ -128,7 +148,8 @@ ScorePair pawn_structure(const Position& position, Color color) {
     return score;
 }
 
-ScorePair evaluate_side(const Position& position, Color color, int& phase) {
+ScorePair evaluate_side_fast(const Position& position, Color color, int& phase,
+                             const EvaluationData& data) {
     ScorePair score;
     for (int piece_type = 0; piece_type < 6; ++piece_type) {
         const PieceType type = static_cast<PieceType>(piece_type);
@@ -140,12 +161,9 @@ ScorePair evaluate_side(const Position& position, Color color, int& phase) {
             score.eg += material_value(type, true);
             score += piece_square(type, color, square);
 
-            Bitboard attacks = 0;
-            if (type == PieceType::knight) attacks = knight_attacks(square);
-            else if (type == PieceType::bishop) attacks = bishop_attacks(square, position.occupied);
-            else if (type == PieceType::rook) attacks = rook_attacks(square, position.occupied);
-            else if (type == PieceType::queen) attacks = queen_attacks(square, position.occupied);
-            if (attacks != 0)
+            const Bitboard attacks = data.attacks[square];
+            if (type == PieceType::knight || type == PieceType::bishop ||
+                type == PieceType::rook || type == PieceType::queen)
                 score.mg += popcount(attacks & ~position.color_bb[color_index(color)]) *
                             params::mobility_unit;
 
@@ -155,8 +173,10 @@ ScorePair evaluate_side(const Position& position, Color color, int& phase) {
             if (type == PieceType::queen) phase += params::phase_queen;
 
             if (type == PieceType::rook) {
-                const bool friendly_pawn = has_pawn_on_file(position, color, file_of(square));
-                const bool enemy_pawn = has_pawn_on_file(position, opposite(color), file_of(square));
+                const bool friendly_pawn =
+                    data.pawns_by_file[color_slot(color)][file_of(square)] != 0;
+                const bool enemy_pawn =
+                    data.pawns_by_file[color_slot(opposite(color))][file_of(square)] != 0;
                 if (!friendly_pawn && !enemy_pawn) score.mg += params::rook_open_file_mg;
                 else if (!friendly_pawn) score.mg += params::rook_semi_open_file_mg;
                 if (oriented_rank(color, square) == 6) score.mg += params::rook_seventh_mg;
@@ -166,7 +186,7 @@ ScorePair evaluate_side(const Position& position, Color color, int& phase) {
 
     if (popcount(position.piece_bb[piece_index(color, PieceType::bishop)]) >= 2)
         score += {params::bishop_pair_mg, params::bishop_pair_eg};
-    score += pawn_structure(position, color);
+    score += pawn_structure_fast(position, color, data);
 
     const Square king = position.king_square(color);
     if (king != no_square) {
@@ -185,18 +205,7 @@ ScorePair evaluate_side(const Position& position, Color color, int& phase) {
         while (enemies != 0) {
             const Square source = lsb(enemies);
             pop_lsb(enemies);
-            const Piece piece = position.mailbox[source];
-            Bitboard attacks = 0;
-            switch (type_of(piece)) {
-                case PieceType::pawn: attacks = pawn_attacks(opposite(color), source); break;
-                case PieceType::knight: attacks = knight_attacks(source); break;
-                case PieceType::bishop: attacks = bishop_attacks(source, position.occupied); break;
-                case PieceType::rook: attacks = rook_attacks(source, position.occupied); break;
-                case PieceType::queen: attacks = queen_attacks(source, position.occupied); break;
-                case PieceType::king: attacks = king_attacks(source); break;
-                default: break;
-            }
-            if ((attacks & zone) != 0) ++attackers;
+            if ((data.attacks[source] & zone) != 0) ++attackers;
         }
         score.mg -= attackers * params::king_zone_attack_unit;
     }
@@ -206,9 +215,10 @@ ScorePair evaluate_side(const Position& position, Color color, int& phase) {
 }  // namespace
 
 int evaluate(const Position& position) {
+    const EvaluationData data = prepare_evaluation_data(position);
     int phase = 0;
-    const ScorePair white = evaluate_side(position, Color::white, phase);
-    const ScorePair black = evaluate_side(position, Color::black, phase);
+    const ScorePair white = evaluate_side_fast(position, Color::white, phase, data);
+    const ScorePair black = evaluate_side_fast(position, Color::black, phase, data);
     phase = std::min(phase, params::max_phase);
     const int mg = white.mg - black.mg;
     const int eg = white.eg - black.eg;
