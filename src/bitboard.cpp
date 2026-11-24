@@ -82,12 +82,6 @@ struct SlidingTables {
     }
 };
 
-const SlidingTables& sliding_tables() {
-    // Tables are built once from Bubu-generated multipliers, then read-only.
-    static const SlidingTables tables;
-    return tables;
-}
-
 Bitboard leaper_attacks(Square square, const int offsets[][2], int count) {
     Bitboard attacks = 0;
     const int file = file_of(square);
@@ -121,6 +115,9 @@ Bitboard ray_attacks(Square square, Bitboard occupied, const int dirs[][2],
     return attacks;
 }
 
+// Build once before main so hot-path lookups do not check a local-static guard.
+const SlidingTables slider_tables{};
+
 }  // namespace
 
 Bitboard pawn_attacks(Color color, Square square) {
@@ -143,7 +140,7 @@ Bitboard king_attacks(Square square) {
 }
 
 Bitboard bishop_attacks(Square square, Bitboard occupied) {
-    const SlidingTables& tables = sliding_tables();
+    const SlidingTables& tables = slider_tables;
     const SliderMagic& magic = tables.bishop_info[square];
     const std::size_t index = static_cast<std::size_t>(
         (((occupied & magic.mask) * magic.multiplier) >> magic.shift));
@@ -151,7 +148,7 @@ Bitboard bishop_attacks(Square square, Bitboard occupied) {
 }
 
 Bitboard rook_attacks(Square square, Bitboard occupied) {
-    const SlidingTables& tables = sliding_tables();
+    const SlidingTables& tables = slider_tables;
     const SliderMagic& magic = tables.rook_info[square];
     const std::size_t index = static_cast<std::size_t>(
         (((occupied & magic.mask) * magic.multiplier) >> magic.shift));

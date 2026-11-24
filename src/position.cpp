@@ -27,20 +27,18 @@ std::uint64_t splitmix64(std::uint64_t& state) {
     return value ^ (value >> 31);
 }
 
-const ZobristKeys& zobrist() {
-    // Fixed-seed keys make hashes reproducible across builds and machines.
-    static const ZobristKeys keys = [] {
-        ZobristKeys result{};
-        std::uint64_t seed = 0x4255425543484553ULL;
-        for (auto& piece : result.pieces)
-            for (auto& square : piece) square = splitmix64(seed);
-        for (auto& key : result.castling) key = splitmix64(seed);
-        for (auto& key : result.en_passant_file) key = splitmix64(seed);
-        result.side = splitmix64(seed);
-        return result;
-    }();
-    return keys;
-}
+// Fixed-seed namespace-scope keys are ready before main; hashes stay stable
+// without a local-static initialization check in make/unmake paths.
+const ZobristKeys zobrist_keys = [] {
+    ZobristKeys result{};
+    std::uint64_t seed = 0x4255425543484553ULL;
+    for (auto& piece : result.pieces)
+        for (auto& square : piece) square = splitmix64(seed);
+    for (auto& key : result.castling) key = splitmix64(seed);
+    for (auto& key : result.en_passant_file) key = splitmix64(seed);
+    result.side = splitmix64(seed);
+    return result;
+}();
 
 bool parse_nonnegative(const std::string& text, int& value) {
     const char* begin = text.data();
@@ -54,11 +52,12 @@ void set_error(std::string* error, const char* message) {
 }
 
 void xor_piece(std::uint64_t& key, Piece piece, Square square) {
-    key ^= zobrist().pieces[static_cast<int>(piece)][square];
+    key ^= zobrist_keys.pieces[static_cast<int>(piece)][square];
 }
 
 void xor_en_passant(std::uint64_t& key, Square square) {
-    if (square != no_square) key ^= zobrist().en_passant_file[file_of(square)];
+    if (square != no_square)
+        key ^= zobrist_keys.en_passant_file[file_of(square)];
 }
 
 }  // namespace
@@ -137,9 +136,9 @@ std::uint64_t Position::recompute_hash() const {
         const Piece piece = mailbox[square];
         if (is_piece(piece)) xor_piece(key, piece, square);
     }
-    key ^= zobrist().castling[castling];
+    key ^= zobrist_keys.castling[castling];
     xor_en_passant(key, en_passant);
-    if (side_to_move == Color::black) key ^= zobrist().side;
+    if (side_to_move == Color::black) key ^= zobrist_keys.side;
     return key;
 }
 
@@ -328,7 +327,7 @@ bool Position::make_move(Move move, UndoState& undo) {
             castling, en_passant, halfmove_clock, fullmove_number, hash,
             history_count};
 
-    hash ^= zobrist().castling[castling];
+    hash ^= zobrist_keys.castling[castling];
     xor_en_passant(hash, en_passant);
     xor_piece(hash, moving, move.from);
     remove_piece(move.from);
@@ -373,9 +372,9 @@ bool Position::make_move(Move move, UndoState& undo) {
                          : halfmove_clock + 1;
     if (us == Color::black) ++fullmove_number;
     side_to_move = opposite(us);
-    hash ^= zobrist().castling[castling];
+    hash ^= zobrist_keys.castling[castling];
     xor_en_passant(hash, en_passant);
-    hash ^= zobrist().side;
+    hash ^= zobrist_keys.side;
     if (history_count < max_game_plies) history[history_count++] = hash;
 
 #ifndef NDEBUG
@@ -423,7 +422,7 @@ void Position::make_null_move(UndoState& undo) {
     xor_en_passant(hash, en_passant);
     en_passant = no_square;
     side_to_move = opposite(side_to_move);
-    hash ^= zobrist().side;
+    hash ^= zobrist_keys.side;
 #ifndef NDEBUG
     assert(hash == recompute_hash());
 #endif
