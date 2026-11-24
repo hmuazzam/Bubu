@@ -1,5 +1,6 @@
 /bubu
 /build/
+/results/
 *.o
 *.d
 *.exe

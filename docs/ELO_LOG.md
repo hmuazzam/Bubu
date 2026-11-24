@@ -1,8 +1,10 @@
 # Catatan Pengukuran Elo
 
-Belum ada pengukuran Elo. Angka hanya akan dicatat setelah turnamen benar-benar
-dijalankan, beserta versi engine, jumlah game, time control, lawan, W/D/L, dan
-estimasi Elo dengan error margin.
+No Elo or engine-match result has been measured. `cutechess-cli` and opponent
+engines were not available in the development environment. Record only actual
+matches here, including version, game count, time control, opponent, W/D/L, and
+the Elo estimate with its error margin.
 
 | Versi | Game | Time control | Lawan | W-D-L | Elo +/- error | Catatan |
 |-------|------|--------------|-------|-------|---------------|---------|
+| — | — | — | — | — | — | Strength not measured yet. |

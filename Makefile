@@ -6,7 +6,8 @@ RELEASE_FLAGS ?= -O3 -DNDEBUG
 DEBUG_FLAGS ?= -O1 -g -fsanitize=address,undefined
 LDFLAGS ?=
 
-SOURCES := src/main.cpp
+ENGINE_SOURCES := src/bitboard.cpp src/position.cpp src/movegen.cpp src/eval.cpp src/search.cpp src/bench.cpp src/uci.cpp
+SOURCES := $(ENGINE_SOURCES) src/main.cpp
 BUILD_DIR := build
 RELEASE_BIN := bubu
 DEBUG_BIN := $(BUILD_DIR)/bubu-debug
@@ -17,19 +18,21 @@ all: release
 
 release: $(RELEASE_BIN)
 
-$(RELEASE_BIN): $(SOURCES) | $(BUILD_DIR)
+$(RELEASE_BIN): $(SOURCES) tests/perft.epd | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(COMMON_FLAGS) $(RELEASE_FLAGS) $(SOURCES) $(LDFLAGS) -o $@
 
 debug: $(DEBUG_BIN)
 
-$(DEBUG_BIN): $(SOURCES) | $(BUILD_DIR)
+$(DEBUG_BIN): $(SOURCES) tests/perft.epd | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(COMMON_FLAGS) $(DEBUG_FLAGS) $(SOURCES) $(LDFLAGS) -o $@
 
 $(BUILD_DIR):
 	mkdir -p $@
 
 test: release
-	./$(RELEASE_BIN) --self-check
+	./$(RELEASE_BIN) test
+	python3 tools/test_uci.py ./$(RELEASE_BIN)
+	python3 tools/test_bench.py ./$(RELEASE_BIN)
 
 bench: release
 	./$(RELEASE_BIN) bench

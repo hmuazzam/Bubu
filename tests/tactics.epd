@@ -1,0 +1,4 @@
+# depth expected-bestmove FEN
+3 - rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+4 e1e2 4k3/8/8/8/8/8/4q3/4K3 w - - 0 1
+4 - k7/8/8/8/8/8/4R3/4K3 w - - 0 1

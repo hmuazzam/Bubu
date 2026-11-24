@@ -19,3 +19,4 @@ jobs:
           make test CXX=${{ matrix.compiler }}
           make bench CXX=${{ matrix.compiler }}
           make debug CXX=${{ matrix.compiler }}
+          ./build/bubu-debug test
