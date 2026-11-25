@@ -26,18 +26,14 @@ error margin. Nothing here is a claim of official strength.
 | Bubu build | Release build, bench signature `47626` nodes (depth 6) |
 | Speed reference | startpos, `go depth 12`: 767,327 nodes at about 295k nps (build after the performance pass; about 183k nps before it) |
 
-> TODO: confirm the exact commit hash used for each run (`git rev-parse --short HEAD`)
-> and fill it into the table below. The hash `a79dd9c` is the last known commit
-> from the optimization pass and is used here as a placeholder.
-
 ## Results
 
 | Date | Version | Opponent | Games | TC | W-D-L | Score | Elo +/- error | Notes |
 |------|---------|----------|------:|----|-------|------:|---------------|-------|
-| 2026-11-25 | a79dd9c (confirm) | Stockfish, `UCI_LimitStrength`, `UCI_Elo=1500` | 20 | 5+0.05 | 16-1-3 | 82.5% | +269.37 +/- 219.00 | No opening book. Sanity run only. Margin is too wide to use. |
-| 2026-11-25 | a79dd9c (confirm) | Stockfish, `UCI_Elo=1500` | 100 | 10+0.1 | 99-0-1 | 99.0% | saturated (nan) | With book. Score too high for the Elo formula to be meaningful. Used only as a sanity check. |
-| 2026-11-25 | a79dd9c (confirm) | Stockfish, `UCI_Elo=2400` | 50 | 10+0.1 | 22-5-23 | 49.0% | -6.95 +/- 95.72 | Roughly balanced. Indicative only. |
-| 2026-11-25 | a79dd9c (confirm) | AICE 0.99.2 (CCRL Blitz about 2300) | 50 | 10+0.1 | 43-3-4 | 89.0% | +363.20 +/- 155.42 | AICE options: `BookUsage=None`, `Resigns=false`, `AcceptsDraw=false`, Hash 16. Not used as an absolute estimate (see notes). |
+| 2026-11-25 | 92f6630 (confirm) | Stockfish, `UCI_LimitStrength`, `UCI_Elo=1500` | 20 | 5+0.05 | 16-1-3 | 82.5% | +269.37 +/- 219.00 | No opening book. Sanity run only. Margin is too wide to use. |
+| 2026-11-25 | 92f6630 (confirm) | Stockfish, `UCI_Elo=1500` | 100 | 10+0.1 | 99-0-1 | 99.0% | saturated (nan) | With book. Score too high for the Elo formula to be meaningful. Used only as a sanity check. |
+| 2026-11-25 | 92f6630 (confirm) | Stockfish, `UCI_Elo=2400` | 50 | 10+0.1 | 22-5-23 | 49.0% | -6.95 +/- 95.72 | Roughly balanced. Indicative only. |
+| 2026-11-25 | 92f6630 (confirm) | AICE 0.99.2 (CCRL Blitz about 2300) | 50 | 10+0.1 | 43-3-4 | 89.0% | +363.20 +/- 155.42 | AICE options: `BookUsage=None`, `Resigns=false`, `AcceptsDraw=false`, Hash 16. Not used as an absolute estimate (see notes). |
 
 ## Validation checks
 
