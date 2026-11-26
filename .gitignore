@@ -8,3 +8,6 @@
 *.log
 __pycache__/
 .venv/
+bubu-fast
+bubu-prof
+perf.data*
