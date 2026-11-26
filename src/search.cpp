@@ -67,6 +67,10 @@ void Searcher::set_hash_mb(int megabytes) {
     generation_ = 0;
 }
 
+void Searcher::set_king_safety_v2(bool enabled) {
+    king_safety_v2_ = enabled;
+}
+
 void Searcher::clear_hash() {
     for (Bucket& bucket : table_)
         for (Entry& entry : bucket) entry = Entry{};
@@ -277,10 +281,10 @@ int Searcher::quiescence(Position& position, int alpha, int beta, int ply) {
     ++nodes_;
     selective_depth_ = std::max(selective_depth_, ply);
     if (is_draw(position)) return 0;
-    if (ply >= max_ply - 1) return evaluate(position);
+    if (ply >= max_ply - 1) return evaluate(position, king_safety_v2_);
     const bool checked = in_check(position, position.side_to_move);
     if (!checked) {
-        const int stand_pat = evaluate(position);
+        const int stand_pat = evaluate(position, king_safety_v2_);
         if (stand_pat >= beta) return beta;
         if (stand_pat > alpha) alpha = stand_pat;
     }
@@ -313,7 +317,7 @@ int Searcher::negamax(Position& position, int depth, int alpha, int beta,
     ++nodes_;
     selective_depth_ = std::max(selective_depth_, ply);
     pv_length_[ply] = ply;
-    if (ply >= max_ply - 1) return evaluate(position);
+    if (ply >= max_ply - 1) return evaluate(position, king_safety_v2_);
     if (is_draw(position)) return 0;
 
     const bool checked = in_check(position, position.side_to_move);
@@ -340,7 +344,7 @@ int Searcher::negamax(Position& position, int depth, int alpha, int beta,
     }
 
 #if BUBU_ENABLE_RFP || BUBU_ENABLE_NMP || BUBU_ENABLE_FUTILITY
-    const int static_eval = evaluate(position);
+    const int static_eval = evaluate(position, king_safety_v2_);
 #endif
 #if BUBU_ENABLE_RFP
     if (!pv_node && !checked && depth <= params::rfp_max_depth &&

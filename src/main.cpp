@@ -2,6 +2,7 @@
 #include "bench.h"
 #include "eval.h"
 #include "movegen.h"
+#include "params.h"
 #include "position.h"
 #include "search.h"
 #include "uci.h"
@@ -94,6 +95,76 @@ bool test_make_unmake() {
             position.unmake_move(moves.moves[index], undo);
             if (!position_matches(position, before)) return false;
         }
+    }
+    return true;
+}
+
+bool test_king_safety_v2() {
+    struct CastlePair {
+        const char* label;
+        const char* before;
+        const char* after;
+    };
+    constexpr CastlePair castle_pairs[] = {
+        {"white kingside, queens present",
+         "r3k2r/ppp1pppp/1nbqbn2/8/8/2NQ1B2/PPPPPPPP/R3K2R w KQkq - 0 1",
+         "r3k2r/ppp1pppp/1nbqbn2/8/8/2NQ1B2/PPPPPPPP/R4RK1 w kq - 0 1"},
+        {"white queenside, queens present",
+         "r3k2r/ppp1pppp/1nbqbn2/8/8/2NQ1B2/PPPPPPPP/R3K2R w KQkq - 0 1",
+         "r3k2r/ppp1pppp/1nbqbn2/8/8/2NQ1B2/PPPPPPPP/2KR3R w kq - 0 1"},
+        {"black kingside, queens present",
+         "r3k2r/ppp1pppp/1nbqbn2/8/8/2NQ1B2/PPPPPPPP/R3K2R b KQkq - 0 1",
+         "r4rk1/ppp1pppp/1nbqbn2/8/8/2NQ1B2/PPPPPPPP/R3K2R b KQ - 0 1"},
+        {"black queenside, queens present",
+         "r3k2r/ppp1pppp/1nbqbn2/8/8/2NQ1B2/PPPPPPPP/R3K2R b KQkq - 0 1",
+         "2kr3r/ppp1pppp/1nbqbn2/8/8/2NQ1B2/PPPPPPPP/R3K2R b KQ - 0 1"},
+        {"white kingside, no queens",
+         "r3k2r/ppp1pppp/1nb1bn2/8/8/2N2B2/PPPPPPPP/R3K2R w KQkq - 0 1",
+         "r3k2r/ppp1pppp/1nb1bn2/8/8/2N2B2/PPPPPPPP/R4RK1 w kq - 0 1"},
+    };
+
+    for (const CastlePair& pair : castle_pairs) {
+        Position before;
+        Position after;
+        if (!before.set_fen(pair.before) || !after.set_fen(pair.after) ||
+            before.side_to_move != after.side_to_move)
+            return false;
+        if (evaluate(before, false) != evaluate(before) ||
+            evaluate(after, false) != evaluate(after))
+            return false;
+        const int before_score = evaluate(before, true);
+        const int after_score = evaluate(after, true);
+        const int margin = after_score - before_score;
+        std::cout << "KingSafetyV2 castle test " << pair.label << ": "
+                  << before_score << " -> " << after_score << " cp (margin "
+                  << margin << ")\n";
+        if (margin < params::KingSafetyV2Params::minimum_test_castled_margin_cp)
+            return false;
+    }
+
+    struct ShieldPair {
+        const char* label;
+        const char* intact;
+        const char* advanced;
+    };
+    constexpr ShieldPair shield_pairs[] = {
+        {"kingside g-pawn advanced",
+         "r3k2r/ppp1pppp/1nbqbn2/8/8/2NQ1B2/PPPPPPPP/R4RK1 w kq - 0 1",
+         "r3k2r/ppp1pppp/1nbqbn2/6P1/8/2NQ1B2/PPPPPP1P/R4RK1 w kq - 0 1"},
+        {"queenside b-pawn advanced",
+         "r3k2r/ppp1pppp/1nbqbn2/8/8/2NQ1B2/PPPPPPPP/2KR3R w kq - 0 1",
+         "r3k2r/ppp1pppp/1nbqbn2/1P6/8/2NQ1B2/P1PPPPPP/2KR3R w kq - 0 1"},
+    };
+    for (const ShieldPair& pair : shield_pairs) {
+        Position intact;
+        Position advanced;
+        if (!intact.set_fen(pair.intact) || !advanced.set_fen(pair.advanced))
+            return false;
+        const int intact_score = evaluate(intact, true);
+        const int advanced_score = evaluate(advanced, true);
+        std::cout << "KingSafetyV2 shield test " << pair.label << ": "
+                  << intact_score << " -> " << advanced_score << " cp\n";
+        if (advanced_score >= intact_score) return false;
     }
     return true;
 }
@@ -287,6 +358,11 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         std::cout << "magic attacks: every relevant occupancy for all 64 squares -- ok\n";
+        if (!test_king_safety_v2()) {
+            std::cerr << "KingSafetyV2 evaluation tests failed\n";
+            return 1;
+        }
+        std::cout << "KingSafetyV2: five castling margins and two shield-pawn tests -- ok\n";
         if (!run_perft_suite()) return 1;
         return 0;
     }

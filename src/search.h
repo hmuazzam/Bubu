@@ -73,6 +73,7 @@ class Searcher {
 public:
     Searcher();
     void set_hash_mb(int megabytes);
+    void set_king_safety_v2(bool enabled);
     void clear_hash();
     void stop();
     SearchResult search(Position root, const SearchLimits& limits,
@@ -97,6 +98,7 @@ private:
     std::atomic<bool> stop_requested_{false};
     SearchLimits limits_{};
     std::uint8_t generation_ = 0;
+    bool king_safety_v2_ = false;
     std::uint64_t nodes_ = 0;
     int selective_depth_ = 0;
     int soft_time_ms_ = 0;

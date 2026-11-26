@@ -44,9 +44,45 @@ def main():
     reader.start()
     try:
         send(process, "uci")
-        read_until(output, lambda line: line == "uciok", 2.0)
+        uci_lines = read_until(output, lambda line: line == "uciok", 2.0)
+        if not any("option name KingSafetyV2 type check default false" in line
+                   for line in uci_lines):
+            raise RuntimeError("KingSafetyV2 UCI option is missing or not disabled by default")
         send(process, "isready")
         read_until(output, lambda line: line == "readyok", 2.0)
+        safety_fen = (
+            "r3k2r/ppp1pppp/1nbqbn2/8/8/2NQ1B2/PPPPPPPP/R3K2R w KQkq - 0 1"
+        )
+        castled_fen = (
+            "r3k2r/ppp1pppp/1nbqbn2/8/8/2NQ1B2/PPPPPPPP/R4RK1 w kq - 0 1"
+        )
+        send(process, "position fen " + safety_fen)
+        send(process, "eval")
+        eval_off_line = read_until(
+            output, lambda line: line.startswith("info score cp "), 2.0
+        )[-1]
+        eval_off = int(eval_off_line.rsplit(" ", 1)[1])
+        send(process, "setoption name KingSafetyV2 value true")
+        send(process, "eval")
+        eval_on_line = read_until(
+            output, lambda line: line.startswith("info score cp "), 2.0
+        )[-1]
+        eval_on = int(eval_on_line.rsplit(" ", 1)[1])
+        send(process, "position fen " + castled_fen)
+        send(process, "eval")
+        castled_line = read_until(
+            output, lambda line: line.startswith("info score cp "), 2.0
+        )[-1]
+        if int(castled_line.rsplit(" ", 1)[1]) <= eval_on:
+            raise RuntimeError("KingSafetyV2 did not prefer the castled evaluation")
+        send(process, "setoption name KingSafetyV2 value false")
+        send(process, "position fen " + safety_fen)
+        send(process, "eval")
+        eval_reset_line = read_until(
+            output, lambda line: line.startswith("info score cp "), 2.0
+        )[-1]
+        if int(eval_reset_line.rsplit(" ", 1)[1]) != eval_off:
+            raise RuntimeError("KingSafetyV2=false did not restore the default evaluation")
         send(process, "setoption name Hash value 1")
         send(process, "position startpos")
         send(process, "go depth 4")

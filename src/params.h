@@ -67,4 +67,19 @@ constexpr int lmr_deep_move_number = 8;
 constexpr int aspiration_min_depth = 4;
 constexpr int aspiration_initial_window = 24;
 
+// Experimental king-safety parameters are isolated so self-play tuning can
+// adjust them without changing the established evaluator.
+struct KingSafetyV2Params {
+    static constexpr int uncastled_mg = 70;
+    static constexpr int enemy_queen_mg = 24;
+    static constexpr int each_lost_castling_right_mg = 14;
+    static constexpr int no_castling_rights_mg = 18;
+    static constexpr int nearby_open_file_mg = 10;
+    static constexpr int nearby_semi_open_file_mg = 5;
+    static constexpr int castled_mg = 14;
+    static constexpr int intact_shield_pawn_mg = 5;
+    static constexpr int advanced_shield_pawn_mg = 24;
+    static constexpr int minimum_test_castled_margin_cp = 40;
+};
+
 }  // namespace bubu::params

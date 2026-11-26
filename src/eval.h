@@ -4,6 +4,6 @@
 
 namespace bubu {
 
-int evaluate(const Position& position);
+int evaluate(const Position& position, bool king_safety_v2 = false);
 
 }  // namespace bubu

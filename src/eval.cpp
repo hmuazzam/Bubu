@@ -85,6 +85,11 @@ struct EvaluationData {
 
 int color_slot(Color color) { return color == Color::white ? 0 : 1; }
 
+constexpr std::uint8_t castling_rights(Color color) {
+    return color == Color::white ? white_king_side | white_queen_side
+                                 : black_king_side | black_queen_side;
+}
+
 Bitboard piece_attacks(const Position& position, Piece piece, Square square) {
     switch (type_of(piece)) {
         case PieceType::pawn: return pawn_attacks(color_of(piece), square);
@@ -148,8 +153,70 @@ ScorePair pawn_structure_fast(const Position& position, Color color,
     return score;
 }
 
+int king_safety_v2_score(const Position& position, Color color,
+                         const EvaluationData& data) {
+    using KingSafety = params::KingSafetyV2Params;
+    const Square king = position.king_square(color);
+    if (king == no_square) return 0;
+
+    const int home_rank = color == Color::white ? 0 : 7;
+    const int pawn_home_rank = color == Color::white ? 1 : 6;
+    const int forward = color == Color::white ? 1 : -1;
+    const Square king_rook = make_square(5, home_rank);
+    const Square queen_rook = make_square(3, home_rank);
+    const bool castled_king_side =
+        king == make_square(6, home_rank) &&
+        position.mailbox[king_rook] == make_piece(color, PieceType::rook);
+    const bool castled_queen_side =
+        king == make_square(2, home_rank) &&
+        position.mailbox[queen_rook] == make_piece(color, PieceType::rook);
+    const bool castled = castled_king_side || castled_queen_side;
+
+    if (!castled) {
+        int penalty = KingSafety::uncastled_mg;
+        if (position.piece_bb[piece_index(opposite(color), PieceType::queen)] != 0)
+            penalty += KingSafety::enemy_queen_mg;
+
+        const std::uint8_t rights = position.castling & castling_rights(color);
+        const int remaining_rights = popcount(rights);
+        penalty += (2 - remaining_rights) * KingSafety::each_lost_castling_right_mg;
+        if (remaining_rights == 0) penalty += KingSafety::no_castling_rights_mg;
+
+        const int king_file = file_of(king);
+        for (int file = std::max(0, king_file - 1);
+             file <= std::min(7, king_file + 1); ++file) {
+            const bool friendly_pawn = data.pawns_by_file[color_slot(color)][file] != 0;
+            const bool enemy_pawn =
+                data.pawns_by_file[color_slot(opposite(color))][file] != 0;
+            if (!friendly_pawn && !enemy_pawn)
+                penalty += KingSafety::nearby_open_file_mg;
+            else if (!friendly_pawn)
+                penalty += KingSafety::nearby_semi_open_file_mg;
+        }
+        return -penalty;
+    }
+
+    int bonus = KingSafety::castled_mg;
+    const int first_file = castled_king_side ? 5 : 0;
+    const int last_file = castled_king_side ? 7 : 2;
+    for (int file = first_file; file <= last_file; ++file) {
+        if ((data.pawns_by_file[color_slot(color)][file] &
+             (Bitboard{0xff} << (pawn_home_rank * 8))) != 0)
+            bonus += KingSafety::intact_shield_pawn_mg;
+
+        Bitboard pawns = data.pawns_by_file[color_slot(color)][file];
+        while (pawns != 0) {
+            const Square square = lsb(pawns);
+            pop_lsb(pawns);
+            if ((rank_of(square) - pawn_home_rank) * forward > 0)
+                bonus -= KingSafety::advanced_shield_pawn_mg;
+        }
+    }
+    return bonus;
+}
+
 ScorePair evaluate_side_fast(const Position& position, Color color, int& phase,
-                             const EvaluationData& data) {
+                             const EvaluationData& data, bool use_king_safety_v2) {
     ScorePair score;
     for (int piece_type = 0; piece_type < 6; ++piece_type) {
         const PieceType type = static_cast<PieceType>(piece_type);
@@ -187,6 +254,8 @@ ScorePair evaluate_side_fast(const Position& position, Color color, int& phase,
     if (popcount(position.piece_bb[piece_index(color, PieceType::bishop)]) >= 2)
         score += {params::bishop_pair_mg, params::bishop_pair_eg};
     score += pawn_structure_fast(position, color, data);
+    if (use_king_safety_v2)
+        score.mg += king_safety_v2_score(position, color, data);
 
     const Square king = position.king_square(color);
     if (king != no_square) {
@@ -214,11 +283,13 @@ ScorePair evaluate_side_fast(const Position& position, Color color, int& phase,
 
 }  // namespace
 
-int evaluate(const Position& position) {
+int evaluate(const Position& position, bool king_safety_v2) {
     const EvaluationData data = prepare_evaluation_data(position);
     int phase = 0;
-    const ScorePair white = evaluate_side_fast(position, Color::white, phase, data);
-    const ScorePair black = evaluate_side_fast(position, Color::black, phase, data);
+    const ScorePair white = evaluate_side_fast(position, Color::white, phase, data,
+                                               king_safety_v2);
+    const ScorePair black = evaluate_side_fast(position, Color::black, phase, data,
+                                               king_safety_v2);
     phase = std::min(phase, params::max_phase);
     const int mg = white.mg - black.mg;
     const int eg = white.eg - black.eg;

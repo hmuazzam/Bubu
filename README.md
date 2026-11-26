@@ -13,7 +13,8 @@ well-documented UCI engine through small, verifiable development steps.
 [![Open issues](https://img.shields.io/github/issues/hmuazzam/Bubu)](https://github.com/hmuazzam/Bubu/issues)
 
 > **Project status:** early development. Bubu has a UCI loop and classical
-> single-thread search, but its playing strength has not been measured.
+> single-thread search. Small sanity matches are recorded, but no defensible
+> rating or official CCRL result has been established.
 
 ## Project goals
 
@@ -45,7 +46,9 @@ Cute Chess tournament and has no published Elo rating.
 | Required six-position perft suite | Passing locally |
 | UCI, evaluation, and single-thread search | Available; early implementation |
 | Deterministic search benchmark | Available; 47,626 nodes at depth 6 |
-| Cute Chess games, SPRT, and Elo | Not measured |
+| Small engine sanity matches | Recorded in `docs/ELO_LOG.md`; not a rating estimate |
+| `KingSafetyV2` | Experimental UCI option; disabled by default; SPRT pending |
+| Official rating or verified 2300 Elo target | Not established |
 
 ## Requirements
 
@@ -87,7 +90,9 @@ make -j2 CXX=clang++
 | --- | --- |
 | `make` or `make release` | Build the optimized executable at `./bubu`. |
 | `make debug` | Build `build/bubu-debug` with debug symbols, ASan, and UBSan. |
-| `make test` | Run FEN/hash/make-unmake checks, exhaustive generated-magic checks, the six-position perft suite, tactical/UCI checks, and a deterministic-node check. |
+| `make release-native` | Build a local `-march=native` LTO binary. Do not distribute it to machines with a different CPU. |
+| `make release-v2` / `make release-v3` | Build x86-64-v2 or x86-64-v3 binaries for compatible CPUs. |
+| `make test` | Run FEN/hash/make-unmake checks, generated-magic checks, KingSafetyV2 evaluation pairs, perft, tactical/UCI checks, and a deterministic-node check. |
 | `make bench` | Run the fixed depth-6 search benchmark and print nodes, NPS, and time. |
 | `make clean` | Remove generated build files and the release executable. |
 
@@ -98,8 +103,9 @@ The release build uses `-O3 -DNDEBUG`; the debug build uses
 ## UCI and local play
 
 Bubu supports the common UCI handshake, positions and move lists, depth, node,
-move-time and clock limits, `stop`, `Hash`, `Threads=1`, and `Clear Hash`. For a
-quick terminal check:
+move-time and clock limits, `stop`, `Hash`, `Threads=1`, `Clear Hash`, and the
+experimental `KingSafetyV2` check option (default `false`). For a quick
+terminal check:
 
 ```text
 uci
@@ -107,6 +113,14 @@ isready
 position startpos
 go depth 8
 ```
+
+To compare the experimental king-safety evaluation, send
+`setoption name KingSafetyV2 value true` before searching. Restore the default
+with `setoption name KingSafetyV2 value false`. The option has not been shown
+to improve playing strength until it passes a paired SPRT.
+
+The seven-candidate, seven-ply comparison for the documented Italian-game FEN
+can be repeated with `python3 tools/king_safety_rank.py ./bubu`.
 
 To play a short match with [Cute Chess](https://github.com/cutechess/cutechess),
 provide an opponent engine executable:
@@ -122,7 +136,21 @@ cutechess-cli \
 For repeatable SPRT or a multi-engine gauntlet, see
 [`tools/sprt.sh`](tools/sprt.sh) and [`tools/gauntlet.sh`](tools/gauntlet.sh).
 Both require `cutechess-cli` and an openings PGN supplied by the user. Bubu's
-playing strength has not yet been measured.
+playing strength has not been established by a formal rating test.
+
+To compare `KingSafetyV2` using one binary and paired random openings with
+fastchess, provide an EPD opening file and run:
+
+```sh
+fastchess \
+  -engine name=Bubu-KingSafetyV2 cmd=./bubu proto=uci option.Hash=16 option.Threads=1 option.KingSafetyV2=true \
+  -engine name=Bubu-baseline cmd=./bubu proto=uci option.Hash=16 option.Threads=1 option.KingSafetyV2=false \
+  -openings file=/path/to/openings.epd format=epd order=random \
+  -each tc=5+0.05 \
+  -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05 \
+  -rounds 100000 -repeat -concurrency 2 \
+  -pgnout file=king-safety-v2-sprt.pgn
+```
 
 ## Lichess bot (experimental)
 

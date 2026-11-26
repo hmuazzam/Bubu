@@ -1,20 +1,23 @@
-# Aturan untuk AI Agent
+# Agent Instructions
 
-Aturan ini merangkum Bagian 16 `PRD.md`, yang tetap menjadi sumber kebenaran.
+These rules summarize Section 16 of `PRD.md`, which remains the source of
+truth for project scope and workflow.
 
-1. Baca `PRD.md` dan dokumen di `docs/` sebelum mengubah kode. Kerjakan satu
-   task Bagian 12 per sesi dan ikuti urutannya.
-2. Jangan melompati milestone atau menambah fitur di luar PRD tanpa persetujuan.
-3. Tulis implementasi sendiri dari konsep umum. Jangan menyalin kode atau tabel
-   evaluasi engine lain; catat konsep dan sumber idenya di `docs/SOURCES.md`.
-4. Utamakan tes, lalu implementasi. Jalankan `make test` dan `make bench` untuk
-   task yang relevan, dan commit dengan Conventional Commits.
-5. Sertakan `Bench: <nodes>` pada pesan commit bila search atau evaluasi berubah.
-6. Perubahan search/eval harus disertai hasil SPRT atau alasan yang jelas.
-7. Jelaskan alasan untuk kode non-trivial dalam komentar dan ringkasan akhir
-   yang mudah dipahami pemula.
-8. Batasi kerja lokal sesuai perangkat: `make -j2`, Hash kecil, satu thread.
-9. Jangan melemahkan tes demi hasil hijau. Jika kegagalan berulang tidak dapat
-   diperbaiki, berhenti dan laporkan percobaan serta hasilnya.
-10. Jangan mengarang hasil perft, bench, Elo, atau turnamen; laporkan hanya
-    hasil yang benar-benar diperoleh.
+1. Read `PRD.md` and the documents in `docs/` before changing code. Work on one
+   unfinished task from Section 12 at a time, in order.
+2. Do not skip milestones or add features outside the PRD without approval.
+3. Write original implementations from general concepts. Do not copy engine
+   code or evaluation tables. Record concepts and their sources in
+   `docs/SOURCES.md`.
+4. Prefer tests before implementation. Run `make test` and `make bench` when
+   relevant, then commit with a Conventional Commit message.
+5. Include `Bench: <nodes>` in commits that change search or evaluation.
+6. Search and evaluation changes need SPRT results or a clear reason why SPRT
+   could not be run.
+7. Explain non-trivial code and finish with a beginner-friendly summary.
+8. Keep local work within the machine's limits: use `make -j2`, a small hash,
+   and one search thread.
+9. Do not weaken tests to make them pass. If a failure remains after reasonable
+   attempts, stop and report what was tried.
+10. Never invent perft, benchmark, Elo, or tournament results. Report only
+    measurements that were actually run.

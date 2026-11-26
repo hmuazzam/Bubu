@@ -170,6 +170,16 @@ void UciEngine::handle_setoption(const std::string& command) {
                                                        : hash_mb_;
         hash_mb_ = std::clamp(value, 1, 1024);
         searcher_.set_hash_mb(hash_mb_);
+    } else if (name == "KingSafetyV2") {
+        const bool enabled = value_start < tokens.size() &&
+                             tokens[value_start] == "true";
+        if (enabled != king_safety_v2_) {
+            king_safety_v2_ = enabled;
+            searcher_.set_king_safety_v2(king_safety_v2_);
+            // TT scores use the active evaluator, so do not reuse entries from
+            // a different KingSafetyV2 setting.
+            searcher_.clear_hash();
+        }
     } else if (name == "Threads") {
         write_line("info string Threads is fixed at 1");
     }
@@ -203,6 +213,7 @@ int UciEngine::run() {
             write_line("option name Hash type spin default 16 min 1 max 1024");
             write_line("option name Threads type spin default 1 min 1 max 1");
             write_line("option name Clear Hash type button");
+            write_line("option name KingSafetyV2 type check default false");
             write_line("uciok");
         } else if (command == "isready") {
             write_line("readyok");
@@ -232,7 +243,8 @@ int UciEngine::run() {
             write_line("  a b c d e f g h");
             write_line(position_.fen());
         } else if (command == "eval") {
-            write_line("info score cp " + std::to_string(evaluate(position_)));
+            write_line("info score cp " +
+                       std::to_string(evaluate(position_, king_safety_v2_)));
         } else if (command.rfind("bench", 0) == 0) {
             stop_and_join();
             const std::vector<std::string> tokens = words(command);

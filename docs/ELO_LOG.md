@@ -75,6 +75,8 @@ error margin. Nothing here is a claim of official strength.
 
 ## Planned measurements
 
+- [ ] Paired fastchess SPRT of `KingSafetyV2=true` against
+  `KingSafetyV2=false`, using the same binary and identical match settings.
 - [ ] Gauntlet vs engines at about 2400 and about 2570 CCRL Blitz (Eeyore 1.52, Amyan 1.72, or alternatives), 100+ games each.
 - [ ] SPRT of search features (pruning ON vs OFF, then per feature).
 - [ ] Larger gauntlet (200-300 games per opponent) with consistent opponent settings for a defensible estimate.
