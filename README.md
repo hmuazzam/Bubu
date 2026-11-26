@@ -184,9 +184,9 @@ have actually been run. See [`docs/DESIGN.md`](docs/DESIGN.md),
 ## Contributing
 
 Contributions and careful reviews are welcome. Before making changes, read
-[`AGENTS.md`](AGENTS.md) and [`PRD.md`](PRD.md). Keep changes within the
-documented scope, include reproducible verification results, and do not weaken
-tests or report unmeasured strength claims.
+[`AGENTS.md`](AGENTS.md) and the relevant documents in [`docs/`](docs/). Keep
+changes within the agreed scope, include reproducible verification results,
+and do not weaken tests or report unmeasured strength claims.
 
 The project is intended to be original. Implement general chess-engine ideas
 independently, and document references for new concepts in

@@ -1,11 +1,11 @@
 # Agent Instructions
 
-These rules summarize Section 16 of `PRD.md`, which remains the source of
-truth for project scope and workflow.
+These rules define the project's agent workflow. The README and documents in
+`docs/` describe the current project scope and design.
 
-1. Read `PRD.md` and the documents in `docs/` before changing code. Work on one
-   unfinished task from Section 12 at a time, in order.
-2. Do not skip milestones or add features outside the PRD without approval.
+1. Read this file and the relevant documents in `docs/` before changing code.
+   Work on one user-authorized task at a time.
+2. Do not expand the requested scope or add unrelated features without approval.
 3. Write original implementations from general concepts. Do not copy engine
    code or evaluation tables. Record concepts and their sources in
    `docs/SOURCES.md`.

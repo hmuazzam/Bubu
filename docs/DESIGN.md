@@ -17,7 +17,7 @@ gate for this design.
 
 ## Design principles
 
-- Follow the task order in Section 12 of `PRD.md`.
+- Follow the task scope agreed with the project owner.
 - Prioritize correctness and small module interfaces.
 - Avoid hidden mutable global state and dynamic allocation in the search hot
   path.
