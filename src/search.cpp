@@ -131,8 +131,9 @@ int Searcher::hashfull() const {
 bool Searcher::should_stop() {
     if (stop_requested_.load(std::memory_order_relaxed)) return true;
     if (limits_.nodes != 0 && nodes_ >= limits_.nodes) return true;
-    if ((nodes_ & 255U) != 0 || limits_.infinite) return false;
-    if (hard_time_ms_ <= 0) return false;
+    if (limits_.infinite || !has_hard_time_limit_ ||
+        nodes_ % static_cast<std::uint64_t>(time_check_interval_) != 0)
+        return false;
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                              std::chrono::steady_clock::now() - start_time_)
                              .count();
@@ -469,10 +470,21 @@ SearchResult Searcher::search(
     start_time_ = std::chrono::steady_clock::now();
     soft_time_ms_ = 0;
     hard_time_ms_ = 0;
+    time_check_interval_ = 256;
+    has_hard_time_limit_ = false;
+    quick_move_ = false;
     if (!limits.infinite) {
         if (limits.movetime_ms > 0) {
-            soft_time_ms_ = std::max(1, limits.movetime_ms * 4 / 5);
-            hard_time_ms_ = std::max(1, limits.movetime_ms - 5);
+            const int available = std::max(0, limits.movetime_ms -
+                                                  limits.move_overhead_ms);
+            if (available < 200) {
+                quick_move_ = true;
+            } else {
+                soft_time_ms_ = static_cast<int>(
+                    static_cast<std::int64_t>(available) * 4 / 5);
+                hard_time_ms_ = std::max(1, available - 5);
+                has_hard_time_limit_ = true;
+            }
         } else {
             const int remaining = root.side_to_move == Color::white
                                       ? limits.white_time_ms
@@ -480,20 +492,42 @@ SearchResult Searcher::search(
             const int increment = root.side_to_move == Color::white
                                       ? limits.white_increment_ms
                                       : limits.black_increment_ms;
-            if (remaining > 0) {
-                const int moves = limits.moves_to_go > 0 ? limits.moves_to_go : 30;
-                soft_time_ms_ = std::max(10, remaining / moves + increment * 3 / 4);
-                soft_time_ms_ = std::min(soft_time_ms_, std::max(10, remaining / 2));
-                hard_time_ms_ = std::max(1, std::min(remaining - 5,
-                                                     soft_time_ms_ * 3));
+            if (limits.clock_time_supplied && remaining < 200) {
+                quick_move_ = true;
+            } else if (remaining > 0) {
+                const int available = std::max(0, remaining -
+                                                      limits.move_overhead_ms);
+                if (available < 200) {
+                    quick_move_ = true;
+                } else {
+                    const int moves = limits.moves_to_go > 0
+                                          ? limits.moves_to_go
+                                          : 30;
+                    const std::int64_t planned_soft =
+                        static_cast<std::int64_t>(available) / moves +
+                        static_cast<std::int64_t>(increment) * 3 / 4;
+                    soft_time_ms_ = static_cast<int>(std::clamp<std::int64_t>(
+                        planned_soft, 1, std::max(1, available / 2)));
+                    hard_time_ms_ = static_cast<int>(std::min<std::int64_t>(
+                        std::max(1, available - 5),
+                        static_cast<std::int64_t>(soft_time_ms_) * 3));
+                    has_hard_time_limit_ = true;
+                }
             }
         }
+    }
+
+    if (has_hard_time_limit_) {
+        if (hard_time_ms_ <= 50) time_check_interval_ = 8;
+        else if (hard_time_ms_ <= 200) time_check_interval_ = 16;
+        else if (hard_time_ms_ <= 1000) time_check_interval_ = 32;
     }
 
     SearchResult result;
     MoveList root_moves = generate_legal_moves(root);
     if (root_moves.count == 0) return result;
     result.best_move = root_moves.moves[0];
+    if (quick_move_) return result;
 #if BUBU_ENABLE_ASPIRATION
     int previous_score = 0;
 #endif

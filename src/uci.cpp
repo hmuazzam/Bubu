@@ -123,10 +123,13 @@ void UciEngine::handle_go(const std::string& command) {
             limits.nodes = static_cast<std::uint64_t>(std::max(0, to_int(tokens[++index])));
         else if (token == "movetime" && index + 1 < tokens.size())
             limits.movetime_ms = std::max(0, to_int(tokens[++index]));
-        else if (token == "wtime" && index + 1 < tokens.size())
+        else if (token == "wtime" && index + 1 < tokens.size()) {
             limits.white_time_ms = std::max(0, to_int(tokens[++index]));
-        else if (token == "btime" && index + 1 < tokens.size())
+            limits.clock_time_supplied = true;
+        } else if (token == "btime" && index + 1 < tokens.size()) {
             limits.black_time_ms = std::max(0, to_int(tokens[++index]));
+            limits.clock_time_supplied = true;
+        }
         else if (token == "winc" && index + 1 < tokens.size())
             limits.white_increment_ms = std::max(0, to_int(tokens[++index]));
         else if (token == "binc" && index + 1 < tokens.size())
@@ -135,6 +138,7 @@ void UciEngine::handle_go(const std::string& command) {
             limits.moves_to_go = std::max(0, to_int(tokens[++index]));
     }
 
+    limits.move_overhead_ms = move_overhead_ms_;
     const Position root = position_;
     searching_.store(true, std::memory_order_relaxed);
     worker_ = std::thread([this, root, limits] () mutable {
@@ -180,6 +184,11 @@ void UciEngine::handle_setoption(const std::string& command) {
             // a different KingSafetyV2 setting.
             searcher_.clear_hash();
         }
+    } else if (name == "Move Overhead") {
+        const int value = value_start < tokens.size()
+                              ? to_int(tokens[value_start], move_overhead_ms_)
+                              : move_overhead_ms_;
+        move_overhead_ms_ = std::clamp(value, 0, 5000);
     } else if (name == "Threads") {
         write_line("info string Threads is fixed at 1");
     }
@@ -214,6 +223,7 @@ int UciEngine::run() {
             write_line("option name Threads type spin default 1 min 1 max 1");
             write_line("option name Clear Hash type button");
             write_line("option name KingSafetyV2 type check default true");
+            write_line("option name Move Overhead type spin default 30 min 0 max 5000");
             write_line("uciok");
         } else if (command == "isready") {
             write_line("readyok");

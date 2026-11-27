@@ -48,6 +48,9 @@ def main():
         if not any("option name KingSafetyV2 type check default true" in line
                    for line in uci_lines):
             raise RuntimeError("KingSafetyV2 UCI option is missing or not enabled by default")
+        if not any("option name Move Overhead type spin default 30 min 0 max 5000" in line
+                   for line in uci_lines):
+            raise RuntimeError("Move Overhead UCI option is missing or has wrong bounds")
         send(process, "isready")
         read_until(output, lambda line: line == "readyok", 2.0)
         safety_fen = (
@@ -135,11 +138,52 @@ def main():
         latency_ms = (time.monotonic() - sent) * 1000
         if latency_ms >= 50:
             raise RuntimeError(f"stop took {latency_ms:.1f} ms (limit: <50 ms)")
+
+        send(process, "setoption name Move Overhead value 30")
+        worst_clock_ms = 0.0
+        for remaining in (100, 50, 30):
+            for increment in (0, 50):
+                for side in ("white", "black"):
+                    if side == "white":
+                        send(process, "position startpos")
+                        go = (f"go wtime {remaining} btime 5000 winc {increment} "
+                              "binc 0 movestogo 20")
+                    else:
+                        send(process, "position startpos moves e2e4")
+                        go = (f"go wtime 5000 btime {remaining} winc 0 "
+                              f"binc {increment} movestogo 20")
+                    sent = time.monotonic()
+                    send(process, go)
+                    read_until(output, lambda line: line.startswith("bestmove "), 1.0)
+                    elapsed_ms = (time.monotonic() - sent) * 1000
+                    worst_clock_ms = max(worst_clock_ms, elapsed_ms)
+                    if elapsed_ms >= remaining:
+                        raise RuntimeError(
+                            f"{side} clock {remaining} ms + {increment} ms returned "
+                            f"bestmove after {elapsed_ms:.1f} ms"
+                        )
+
+        send(process, "position startpos")
+        sent = time.monotonic()
+        send(process, "go wtime 250 btime 5000 winc 0 binc 0 movestogo 1")
+        read_until(output, lambda line: line.startswith("bestmove "), 1.0)
+        elapsed_ms = (time.monotonic() - sent) * 1000
+        if elapsed_ms >= 220:
+            raise RuntimeError(
+                f"250 ms clock exceeded its 220 ms post-overhead budget: {elapsed_ms:.1f} ms"
+            )
+        reserved_clock_ms = elapsed_ms
+
         send(process, "bench 3")
         lines = read_until(output, lambda line: "bench depth 3 nodes" in line, 10.0)
         if not any("nodes 0 " not in line for line in lines):
             raise RuntimeError("UCI bench did not search any nodes")
-        print(f"UCI, legal/tactical search, and stop: ok ({latency_ms:.1f} ms)")
+        print(
+            "UCI, legal/tactical search, stop, and small clocks: ok "
+            f"(stop {latency_ms:.1f} ms; worst small-clock response "
+            f"{worst_clock_ms:.1f} ms; 250 ms clock response "
+            f"{reserved_clock_ms:.1f} ms)"
+        )
     finally:
         if process.poll() is None:
             send(process, "quit")

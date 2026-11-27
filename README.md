@@ -103,9 +103,12 @@ The release build uses `-O3 -DNDEBUG`; the debug build uses
 ## UCI and local play
 
 Bubu supports the common UCI handshake, positions and move lists, depth, node,
-move-time and clock limits, `stop`, `Hash`, `Threads=1`, `Clear Hash`, and the
+move-time and clock limits, `stop`, `Hash`, `Threads=1`, `Clear Hash`, the
 `KingSafetyV2` check option (default `true`, with `false` available to restore
-the baseline evaluation). For a quick terminal check:
+the baseline evaluation), and `Move Overhead` (default 30 ms, range 0–5000).
+Move Overhead is reserved from the available clock budget. If less than 200 ms
+remains after that reserve, Bubu returns a legal move immediately. For a quick
+terminal check:
 
 ```text
 uci

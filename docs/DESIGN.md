@@ -46,6 +46,20 @@ at 5+0.05: 54.1% score, LLR 3.01, and H1 accepted. Castling occurred in 98% of
 the enabled games and 16% of the disabled games. This supports the enabled
 default; it is not an Elo estimate.
 
+## Clock management
+
+The UCI `Move Overhead` spin option defaults to 30 ms and accepts 0–5000 ms.
+Each timed search subtracts this reserve before assigning soft and hard
+budgets. The hard budget is capped below the remaining clock after the reserve
+by a small safety margin. Hard-limit checks run every 8 nodes for limits up to
+50 ms, every 16 nodes up to 200 ms, every 32 nodes up to 1000 ms, and every 256
+nodes for longer limits. If the clock is below 200 ms, or the usable budget
+after the reserve is below 200 ms, Bubu skips iterative search and returns the
+first legal root move immediately. This keeps the emergency path shallow and
+avoids spending the clock on a low-depth search. `tools/test_uci.py` checks
+small clocks for both sides, with zero and 50 ms increments, plus a 250 ms
+clock that exercises the reserved budget.
+
 ## Build and verification
 
 Makefile provides release and ASan/UBSan builds. `make test` checks 50 FEN
