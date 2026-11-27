@@ -48,7 +48,7 @@ struct SearchLimits {
     int white_increment_ms = 0;
     int black_increment_ms = 0;
     int moves_to_go = 0;
-    int move_overhead_ms = 30;
+    int move_overhead_ms = 10;
     bool clock_time_supplied = false;
     bool infinite = false;
 };
@@ -107,7 +107,8 @@ private:
     int hard_time_ms_ = 0;
     int time_check_interval_ = 256;
     bool has_hard_time_limit_ = false;
-    bool quick_move_ = false;
+    bool emergency_clock_ = false;
+    int current_depth_ = 0;
     std::chrono::steady_clock::time_point start_time_{};
     std::array<std::array<Move, 2>, max_ply> killers_{};
     std::array<std::array<std::array<int, 64>, 64>, 2> history_{};

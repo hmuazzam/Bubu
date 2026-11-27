@@ -48,17 +48,20 @@ default; it is not an Elo estimate.
 
 ## Clock management
 
-The UCI `Move Overhead` spin option defaults to 30 ms and accepts 0–5000 ms.
+The UCI `Move Overhead` spin option defaults to 10 ms and accepts 0–5000 ms.
 Each timed search subtracts this reserve before assigning soft and hard
-budgets. The hard budget is capped below the remaining clock after the reserve
-by a small safety margin. Hard-limit checks run every 8 nodes for limits up to
-50 ms, every 16 nodes up to 200 ms, every 32 nodes up to 1000 ms, and every 256
-nodes for longer limits. If the clock is below 200 ms, or the usable budget
-after the reserve is below 200 ms, Bubu skips iterative search and returns the
-first legal root move immediately. This keeps the emergency path shallow and
-avoids spending the clock on a low-depth search. `tools/test_uci.py` checks
-small clocks for both sides, with zero and 50 ms increments, plus a 250 ms
-clock that exercises the reserved budget.
+budgets. The hard budget is the smaller of three times the soft allocation and
+the remaining clock after the reserve. Hard-limit checks run every 8 nodes for
+limits up to 50 ms, every 16 nodes up to 200 ms, every 32 nodes up to 1000 ms,
+and every 256 nodes for longer limits. A clock at or below overhead plus 10 ms
+uses only a depth-2 search, except when there is exactly one legal move, which
+can be returned immediately. The search always completes depth 2 before
+enforcing the hard limit; if a later iteration is interrupted, it returns the
+best move from the last completed iteration. `tools/test_uci.py` checks both
+sides at 50, 100, 150, 200, 300, and 500 ms with zero and 50 ms increments,
+including a depth-2 info line, legal bestmove, and response before flag fall.
+No SPRT was run for this clock-safety correction; the timing tests and fixed
+benchmark do not measure playing strength.
 
 ## Build and verification
 

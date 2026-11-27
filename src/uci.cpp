@@ -223,7 +223,7 @@ int UciEngine::run() {
             write_line("option name Threads type spin default 1 min 1 max 1");
             write_line("option name Clear Hash type button");
             write_line("option name KingSafetyV2 type check default true");
-            write_line("option name Move Overhead type spin default 30 min 0 max 5000");
+            write_line("option name Move Overhead type spin default 10 min 0 max 5000");
             write_line("uciok");
         } else if (command == "isready") {
             write_line("readyok");

@@ -131,7 +131,7 @@ int Searcher::hashfull() const {
 bool Searcher::should_stop() {
     if (stop_requested_.load(std::memory_order_relaxed)) return true;
     if (limits_.nodes != 0 && nodes_ >= limits_.nodes) return true;
-    if (limits_.infinite || !has_hard_time_limit_ ||
+    if (limits_.infinite || !has_hard_time_limit_ || current_depth_ <= 2 ||
         nodes_ % static_cast<std::uint64_t>(time_check_interval_) != 0)
         return false;
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -472,19 +472,19 @@ SearchResult Searcher::search(
     hard_time_ms_ = 0;
     time_check_interval_ = 256;
     has_hard_time_limit_ = false;
-    quick_move_ = false;
+    emergency_clock_ = false;
     if (!limits.infinite) {
         if (limits.movetime_ms > 0) {
             const int available = std::max(0, limits.movetime_ms -
                                                   limits.move_overhead_ms);
-            if (available < 200) {
-                quick_move_ = true;
-            } else {
-                soft_time_ms_ = static_cast<int>(
-                    static_cast<std::int64_t>(available) * 4 / 5);
-                hard_time_ms_ = std::max(1, available - 5);
-                has_hard_time_limit_ = true;
-            }
+            emergency_clock_ = limits.movetime_ms <= limits.move_overhead_ms + 10;
+            const int allocation_ceiling = std::max(1, available / 2);
+            soft_time_ms_ = static_cast<int>(std::clamp<std::int64_t>(
+                static_cast<std::int64_t>(available) * 4 / 5,
+                std::min(20, allocation_ceiling), allocation_ceiling));
+            hard_time_ms_ = static_cast<int>(std::min<std::int64_t>(
+                available, static_cast<std::int64_t>(soft_time_ms_) * 3));
+            has_hard_time_limit_ = available > 0;
         } else {
             const int remaining = root.side_to_move == Color::white
                                       ? limits.white_time_ms
@@ -492,27 +492,24 @@ SearchResult Searcher::search(
             const int increment = root.side_to_move == Color::white
                                       ? limits.white_increment_ms
                                       : limits.black_increment_ms;
-            if (limits.clock_time_supplied && remaining < 200) {
-                quick_move_ = true;
-            } else if (remaining > 0) {
+            emergency_clock_ = limits.clock_time_supplied &&
+                               remaining <= limits.move_overhead_ms + 10;
+            if (limits.clock_time_supplied) {
                 const int available = std::max(0, remaining -
                                                       limits.move_overhead_ms);
-                if (available < 200) {
-                    quick_move_ = true;
-                } else {
-                    const int moves = limits.moves_to_go > 0
-                                          ? limits.moves_to_go
-                                          : 30;
-                    const std::int64_t planned_soft =
-                        static_cast<std::int64_t>(available) / moves +
-                        static_cast<std::int64_t>(increment) * 3 / 4;
-                    soft_time_ms_ = static_cast<int>(std::clamp<std::int64_t>(
-                        planned_soft, 1, std::max(1, available / 2)));
-                    hard_time_ms_ = static_cast<int>(std::min<std::int64_t>(
-                        std::max(1, available - 5),
-                        static_cast<std::int64_t>(soft_time_ms_) * 3));
-                    has_hard_time_limit_ = true;
-                }
+                const int moves = limits.moves_to_go > 0
+                                      ? limits.moves_to_go
+                                      : 30;
+                const std::int64_t planned_allocation =
+                    static_cast<std::int64_t>(available) / moves +
+                    static_cast<std::int64_t>(increment) * 3 / 4;
+                const int allocation_ceiling = std::max(1, available / 2);
+                soft_time_ms_ = static_cast<int>(std::clamp<std::int64_t>(
+                    planned_allocation, std::min(20, allocation_ceiling),
+                    allocation_ceiling));
+                hard_time_ms_ = static_cast<int>(std::min<std::int64_t>(
+                    available, static_cast<std::int64_t>(soft_time_ms_) * 3));
+                has_hard_time_limit_ = available > 0;
             }
         }
     }
@@ -527,12 +524,15 @@ SearchResult Searcher::search(
     MoveList root_moves = generate_legal_moves(root);
     if (root_moves.count == 0) return result;
     result.best_move = root_moves.moves[0];
-    if (quick_move_) return result;
+    if (emergency_clock_ && root_moves.count == 1) return result;
 #if BUBU_ENABLE_ASPIRATION
     int previous_score = 0;
 #endif
-    const int target_depth = std::clamp(limits.depth, 1, max_ply - 2);
+    const int target_depth = emergency_clock_
+                                 ? 2
+                                 : std::clamp(limits.depth, 1, max_ply - 2);
     for (int depth = 1; depth <= target_depth; ++depth) {
+        current_depth_ = depth;
 #if BUBU_ENABLE_ASPIRATION
         int alpha = depth >= params::aspiration_min_depth
                         ? previous_score - params::aspiration_initial_window
@@ -581,8 +581,12 @@ SearchResult Searcher::search(
             info.pv[index] = pv_table_[0][index];
         report(info);
 
-        if (std::abs(score) > mate_threshold ||
-            (soft_time_ms_ > 0 && static_cast<int>(info.time_ms) >= soft_time_ms_))
+        const bool minimum_timed_depth_done =
+            depth >= 2 || (!limits.clock_time_supplied && limits.movetime_ms <= 0);
+        if (minimum_timed_depth_done &&
+            (std::abs(score) > mate_threshold ||
+             (soft_time_ms_ > 0 &&
+              static_cast<int>(info.time_ms) >= soft_time_ms_)))
             break;
     }
     result.nodes = nodes_;

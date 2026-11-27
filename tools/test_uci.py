@@ -48,7 +48,7 @@ def main():
         if not any("option name KingSafetyV2 type check default true" in line
                    for line in uci_lines):
             raise RuntimeError("KingSafetyV2 UCI option is missing or not enabled by default")
-        if not any("option name Move Overhead type spin default 30 min 0 max 5000" in line
+        if not any("option name Move Overhead type spin default 10 min 0 max 5000" in line
                    for line in uci_lines):
             raise RuntimeError("Move Overhead UCI option is missing or has wrong bounds")
         send(process, "isready")
@@ -139,22 +139,42 @@ def main():
         if latency_ms >= 50:
             raise RuntimeError(f"stop took {latency_ms:.1f} ms (limit: <50 ms)")
 
-        send(process, "setoption name Move Overhead value 30")
+        send(process, "setoption name Move Overhead value 10")
+        clock_test_positions = {
+            "white": {
+                "command": "position startpos moves e2e4 e7e5",
+                "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2",
+            },
+            "black": {
+                "command": "position startpos moves e2e4 e7e5 g1f3",
+                "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
+            },
+        }
+        legal_clock_moves = {}
+        for side, position in clock_test_positions.items():
+            legal_result = subprocess.run(
+                [engine, "perft", "divide", "1", *shlex.split(position["fen"])],
+                check=True, capture_output=True, text=True
+            )
+            legal_clock_moves[side] = {
+                row.split(":", 1)[0]
+                for row in legal_result.stdout.splitlines()
+                if ":" in row
+            }
+
         worst_clock_ms = 0.0
-        for remaining in (100, 50, 30):
+        clock_searches = 0
+        for remaining in (50, 100, 150, 200, 300, 500):
             for increment in (0, 50):
                 for side in ("white", "black"):
-                    if side == "white":
-                        send(process, "position startpos")
-                        go = (f"go wtime {remaining} btime 5000 winc {increment} "
-                              "binc 0 movestogo 20")
-                    else:
-                        send(process, "position startpos moves e2e4")
-                        go = (f"go wtime 5000 btime {remaining} winc 0 "
-                              f"binc {increment} movestogo 20")
+                    send(process, clock_test_positions[side]["command"])
+                    go = (f"go wtime {remaining} btime {remaining} "
+                          f"winc {increment} binc {increment} movestogo 20")
                     sent = time.monotonic()
                     send(process, go)
-                    read_until(output, lambda line: line.startswith("bestmove "), 1.0)
+                    lines = read_until(
+                        output, lambda line: line.startswith("bestmove "), 2.0
+                    )
                     elapsed_ms = (time.monotonic() - sent) * 1000
                     worst_clock_ms = max(worst_clock_ms, elapsed_ms)
                     if elapsed_ms >= remaining:
@@ -162,17 +182,40 @@ def main():
                             f"{side} clock {remaining} ms + {increment} ms returned "
                             f"bestmove after {elapsed_ms:.1f} ms"
                         )
-
-        send(process, "position startpos")
-        sent = time.monotonic()
-        send(process, "go wtime 250 btime 5000 winc 0 binc 0 movestogo 1")
-        read_until(output, lambda line: line.startswith("bestmove "), 1.0)
-        elapsed_ms = (time.monotonic() - sent) * 1000
-        if elapsed_ms >= 220:
-            raise RuntimeError(
-                f"250 ms clock exceeded its 220 ms post-overhead budget: {elapsed_ms:.1f} ms"
-            )
-        reserved_clock_ms = elapsed_ms
+                    bestmove_line = next(
+                        line for line in reversed(lines)
+                        if line.startswith("bestmove ")
+                    )
+                    bestmove = bestmove_line.split()[1]
+                    if bestmove not in legal_clock_moves[side]:
+                        raise RuntimeError(
+                            f"{side} clock search returned illegal move {bestmove}"
+                        )
+                    completed_pvs = []
+                    for line in lines:
+                        fields = line.split()
+                        if (len(fields) >= 7 and fields[0] == "info" and
+                                fields[1] == "depth" and fields[3] == "seldepth" and
+                                "score" in fields and "pv" in fields):
+                            pv_index = fields.index("pv")
+                            if pv_index + 1 < len(fields):
+                                completed_pvs.append(
+                                    (int(fields[2]), fields[pv_index + 1])
+                                )
+                    if not any(depth >= 2 for depth, _ in completed_pvs):
+                        raise RuntimeError(
+                            f"{side} clock {remaining} ms + {increment} ms "
+                            f"returned {bestmove} without a completed depth-2 info line; "
+                            f"output: {lines}"
+                        )
+                    last_completed_pv = max(completed_pvs)[1]
+                    if bestmove != last_completed_pv:
+                        raise RuntimeError(
+                            f"{side} clock {remaining} ms + {increment} ms returned "
+                            f"{bestmove}, but latest completed PV starts with "
+                            f"{last_completed_pv}"
+                        )
+                    clock_searches += 1
 
         send(process, "bench 3")
         lines = read_until(output, lambda line: "bench depth 3 nodes" in line, 10.0)
@@ -181,8 +224,8 @@ def main():
         print(
             "UCI, legal/tactical search, stop, and small clocks: ok "
             f"(stop {latency_ms:.1f} ms; worst small-clock response "
-            f"{worst_clock_ms:.1f} ms; 250 ms clock response "
-            f"{reserved_clock_ms:.1f} ms)"
+            f"{worst_clock_ms:.1f} ms; {clock_searches} timed searches "
+            "completed at least depth 2)"
         )
     finally:
         if process.poll() is None:

@@ -23,7 +23,7 @@ private:
     std::atomic<bool> searching_{false};
     std::mutex output_mutex_;
     int hash_mb_ = 16;
-    int move_overhead_ms_ = 30;
+    int move_overhead_ms_ = 10;
     bool king_safety_v2_ = true;
 
     void write_line(const std::string& line);
