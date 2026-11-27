@@ -23,7 +23,7 @@ error margin. Nothing here is a claim of official strength.
 | Time control | 10+0.1 unless stated otherwise |
 | Concurrency | 1 game at a time |
 | Openings | `noob_3moves.epd` from `official-stockfish/books`, random order, `-repeat` (each opening played with both colors). The first 20-game test used no book. |
-| Bubu build | Release build, bench signature `47626` nodes (depth 6) |
+| Bubu build | Release build, current default bench signature `42654` nodes (depth 6); `KingSafetyV2=false` signature `47626` |
 | Speed reference | startpos, `go depth 12`: 767,327 nodes at about 295k nps (build after the performance pass; about 183k nps before it) |
 
 ## Results
@@ -35,12 +35,22 @@ error margin. Nothing here is a claim of official strength.
 | 2026-11-25 | 92f6630 (confirm) | Stockfish, `UCI_Elo=2400` | 50 | 10+0.1 | 22-5-23 | 49.0% | -6.95 +/- 95.72 | Roughly balanced. Indicative only. |
 | 2026-11-25 | 92f6630 (confirm) | AICE 0.99.2 (CCRL Blitz about 2300) | 50 | 10+0.1 | 43-3-4 | 89.0% | +363.20 +/- 155.42 | AICE options: `BookUsage=None`, `Resigns=false`, `AcceptsDraw=false`, Hash 16. Not used as an absolute estimate (see notes). |
 
+## Evaluation feature SPRT
+
+The project owner supplied the following paired `KingSafetyV2` result. The
+match date, engine W-D-L, and exact version identifier were not provided, so no
+Elo estimate is derived here.
+
+| Feature comparison | Games | TC | Score | LLR | Decision | Castling rate |
+|--------------------|------:|----|------:|----:|----------|---------------|
+| `KingSafetyV2=true` vs `false` | 810 | 5+0.05 | 54.1% | 3.01 | H1 accepted | 98% vs 16% |
+
 ## Validation checks
 
 | Check | Result |
 |-------|--------|
 | Perft (6 reference positions) | All node counts match |
-| Bench determinism | 47,626 nodes at depth 6, identical across machines and runs |
+| Bench determinism | Default: 42,654 nodes; `KingSafetyV2=false`: 47,626 nodes |
 | UCI compliance (`fastchess --compliance`) | Passed all 40 steps |
 | Sanity matches vs Stockfish, 120 games total | All games ended normally; 0 illegal moves, forfeits, disconnects, or stalls |
 | Match vs AICE, 50 games | All games ended `normal`; 0 illegal moves, forfeits, disconnects, or stalls |
@@ -75,8 +85,6 @@ error margin. Nothing here is a claim of official strength.
 
 ## Planned measurements
 
-- [ ] Paired fastchess SPRT of `KingSafetyV2=true` against
-  `KingSafetyV2=false`, using the same binary and identical match settings.
 - [ ] Gauntlet vs engines at about 2400 and about 2570 CCRL Blitz (Eeyore 1.52, Amyan 1.72, or alternatives), 100+ games each.
 - [ ] SPRT of search features (pruning ON vs OFF, then per feature).
 - [ ] Larger gauntlet (200-300 games per opponent) with consistent opponent settings for a defensible estimate.

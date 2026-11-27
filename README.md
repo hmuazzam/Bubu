@@ -45,9 +45,9 @@ Cute Chess tournament and has no published Elo rating.
 | FEN, hashing, make/unmake, and legal move generation | Available |
 | Required six-position perft suite | Passing locally |
 | UCI, evaluation, and single-thread search | Available; early implementation |
-| Deterministic search benchmark | Available; 47,626 nodes at depth 6 |
+| Deterministic search benchmark | Available; 42,654 nodes at depth 6 by default; 47,626 with `KingSafetyV2=false` |
 | Small engine sanity matches | Recorded in `docs/ELO_LOG.md`; not a rating estimate |
-| `KingSafetyV2` | Experimental UCI option; disabled by default; SPRT pending |
+| `KingSafetyV2` | Enabled by default after a reported 810-game SPRT; opt-out remains available |
 | Official rating or verified 2300 Elo target | Not established |
 
 ## Requirements
@@ -104,8 +104,8 @@ The release build uses `-O3 -DNDEBUG`; the debug build uses
 
 Bubu supports the common UCI handshake, positions and move lists, depth, node,
 move-time and clock limits, `stop`, `Hash`, `Threads=1`, `Clear Hash`, and the
-experimental `KingSafetyV2` check option (default `false`). For a quick
-terminal check:
+`KingSafetyV2` check option (default `true`, with `false` available to restore
+the baseline evaluation). For a quick terminal check:
 
 ```text
 uci
@@ -114,10 +114,10 @@ position startpos
 go depth 8
 ```
 
-To compare the experimental king-safety evaluation, send
-`setoption name KingSafetyV2 value true` before searching. Restore the default
-with `setoption name KingSafetyV2 value false`. The option has not been shown
-to improve playing strength until it passes a paired SPRT.
+To opt out of the king-safety evaluation, send
+`setoption name KingSafetyV2 value false` before searching. The project owner
+reports an 810-game paired SPRT at 5+0.05: 54.1% score, LLR 3.01, with H1
+accepted. This result supports the enabled default but is not an Elo rating.
 
 The seven-candidate, seven-ply comparison for the documented Italian-game FEN
 can be repeated with `python3 tools/king_safety_rank.py ./bubu`.

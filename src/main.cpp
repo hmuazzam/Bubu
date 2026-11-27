@@ -129,9 +129,6 @@ bool test_king_safety_v2() {
         if (!before.set_fen(pair.before) || !after.set_fen(pair.after) ||
             before.side_to_move != after.side_to_move)
             return false;
-        if (evaluate(before, false) != evaluate(before) ||
-            evaluate(after, false) != evaluate(after))
-            return false;
         const int before_score = evaluate(before, true);
         const int after_score = evaluate(after, true);
         const int margin = after_score - before_score;

@@ -98,7 +98,7 @@ private:
     std::atomic<bool> stop_requested_{false};
     SearchLimits limits_{};
     std::uint8_t generation_ = 0;
-    bool king_safety_v2_ = false;
+    bool king_safety_v2_ = true;
     std::uint64_t nodes_ = 0;
     int selective_depth_ = 0;
     int soft_time_ms_ = 0;

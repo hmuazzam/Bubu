@@ -45,9 +45,9 @@ def main():
     try:
         send(process, "uci")
         uci_lines = read_until(output, lambda line: line == "uciok", 2.0)
-        if not any("option name KingSafetyV2 type check default false" in line
+        if not any("option name KingSafetyV2 type check default true" in line
                    for line in uci_lines):
-            raise RuntimeError("KingSafetyV2 UCI option is missing or not disabled by default")
+            raise RuntimeError("KingSafetyV2 UCI option is missing or not enabled by default")
         send(process, "isready")
         read_until(output, lambda line: line == "readyok", 2.0)
         safety_fen = (
@@ -56,6 +56,7 @@ def main():
         castled_fen = (
             "r3k2r/ppp1pppp/1nbqbn2/8/8/2NQ1B2/PPPPPPPP/R4RK1 w kq - 0 1"
         )
+        send(process, "setoption name KingSafetyV2 value false")
         send(process, "position fen " + safety_fen)
         send(process, "eval")
         eval_off_line = read_until(
@@ -82,7 +83,7 @@ def main():
             output, lambda line: line.startswith("info score cp "), 2.0
         )[-1]
         if int(eval_reset_line.rsplit(" ", 1)[1]) != eval_off:
-            raise RuntimeError("KingSafetyV2=false did not restore the default evaluation")
+            raise RuntimeError("KingSafetyV2=false did not restore the baseline evaluation")
         send(process, "setoption name Hash value 1")
         send(process, "position startpos")
         send(process, "go depth 4")
